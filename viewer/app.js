@@ -118,9 +118,13 @@ function buildScene() {
   wire.visible = $('wire').checked;
   scene.add(wire);
 
-  // camera framing on the initial shape
-  g0.computeBoundingSphere();
-  const { center, radius } = g0.boundingSphere;
+  // camera framing on the union of all cycles, so later shapes stay in view
+  const box = new THREE.Box3();
+  for (const p of cyclePos) {
+    for (let k = 0; k < p.length; k += 3) box.expandByPoint(new THREE.Vector3(p[k], p[k + 1], p[k + 2]));
+  }
+  const center = box.getCenter(new THREE.Vector3());
+  const radius = box.getSize(new THREE.Vector3()).length() / 2;
   controls.target.copy(center);
   camera.position.copy(center).add(new THREE.Vector3(-1.2, 0.9, 2.2).normalize().multiplyScalar(radius * 3.4));
   camera.near = radius / 100; camera.far = radius * 100;
