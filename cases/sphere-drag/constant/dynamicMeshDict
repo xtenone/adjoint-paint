@@ -1,0 +1,35 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      dynamicMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+solver volumetricBSplinesMotionSolver;
+
+volumetricBSplinesMotionSolverCoeffs
+{
+    // Morphing box around the sphere (D = 1, centred at the origin),
+    // longer downstream (+x) so the body can grow a tail
+    sphereBox
+    {
+        type    cartesian;
+        nCPsU   10;
+        nCPsV   7;
+        nCPsW   7;
+        degreeU 3;
+        degreeV 3;
+        degreeW 3;
+
+        controlPointsDefinition axisAligned;
+        lowerCpBounds           (-0.8 -0.8 -0.8);
+        upperCpBounds           ( 1.6  0.8  0.8);
+
+        confineUMovement false;
+        confineVMovement false;
+        confineWMovement false;
+        confineBoundaryControlPoints true;
+    }
+}
