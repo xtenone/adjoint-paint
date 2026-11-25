@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>adjoint-paint viewer</title>
+<link rel="stylesheet" href="style.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<div id="app" class="viz-root">
+  <div id="view"></div>
+  <aside id="panel">
+    <header>
+      <select id="case" aria-label="Case"></select>
+      <h1 id="title"></h1>
+    </header>
+
+    <section class="cycle">
+      <div class="row">
+        <button id="play" type="button" aria-label="Afspelen">▶</button>
+        <input id="slider" type="range" min="1" max="1" step="0.01" value="1" aria-label="Cyclus">
+        <output id="cycleLabel"></output>
+      </div>
+      <p id="stats" class="muted"></p>
+    </section>
+
+    <section class="display">
+      <label>Kleur
+        <select id="colorMode">
+          <option value="start">Verplaatsing t.o.v. begin</option>
+          <option value="prev">Verplaatsing t.o.v. vorige cyclus</option>
+          <option value="none">Geen</option>
+        </select>
+      </label>
+      <label class="check"><input id="ghost" type="checkbox" checked> Beginvorm tonen</label>
+      <label class="check"><input id="wire" type="checkbox"> Mesh-lijnen</label>
+      <div id="colorbar" aria-label="Kleurschaal">
+        <div class="bar"></div>
+        <div class="ticks"><span id="cbMin"></span><span>0</span><span id="cbMax"></span></div>
+        <div class="ticks muted"><span>naar binnen</span><span>naar buiten</span></div>
+      </div>
+    </section>
+
+    <section id="charts"></section>
+
+    <details>
+      <summary>Tabel</summary>
+      <table id="table"></table>
+    </details>
+  </aside>
+  <div id="tooltip" role="tooltip" hidden></div>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
