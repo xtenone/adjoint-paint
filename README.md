@@ -15,6 +15,7 @@ the same viewer.
 ## Running
 
     ./run.sh cases/sbend-tutorial
+    ./run.sh cases/pipe-bend
 
 Results land in the case directory (`processor*/`, `optimisation/`, logs).
 
