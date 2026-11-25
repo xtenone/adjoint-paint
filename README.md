@@ -17,3 +17,8 @@ the same viewer.
     ./run.sh cases/sbend-tutorial
 
 Results land in the case directory (`processor*/`, `optimisation/`, logs).
+
+## Licence
+
+GPL-3.0 (see `LICENSE`). The files under `cases/sbend-tutorial/` are taken
+from the OpenFOAM (ESI, v2506) tutorials, which are also GPL-3.0.
