@@ -49,13 +49,18 @@ let playing = false;
 const colNeg = new THREE.Color(css('--div-neg'));
 const colMid = new THREE.Color(css('--div-mid'));
 const colPos = new THREE.Color(css('--div-pos'));
+const colAllowed = new THREE.Color(css('--seq-allowed'));
+const colPriority = new THREE.Color(css('--seq-priority'));
+
+// paint channels, one weight in [0, 1] per surface point (indices of the export)
+let paint = { allowed: new Float32Array(0), priority: new Float32Array(0) };
 
 function positionsAt(time, out) {
   const n = cyclePos.length;
   const tc = Math.min(Math.max(time, 1), n);
-  const i = Math.min(Math.floor(tc), n - 1) - 1;
+  const i = Math.max(0, Math.min(Math.floor(tc), n - 1) - 1);
   const j = Math.min(i + 1, n - 1);
-  const f = tc - 1 - i;
+  const f = i === j ? 0 : tc - 1 - i;
   const a = cyclePos[i], b = cyclePos[j];
   for (let k = 0; k < a.length; k++) out[k] = a[k] + (b[k] - a[k]) * f;
   return out;
@@ -125,6 +130,7 @@ function buildScene() {
   }
   const center = box.getCenter(new THREE.Vector3());
   const radius = box.getSize(new THREE.Vector3()).length() / 2;
+  modelRadius = radius;
   controls.target.copy(center);
   camera.position.copy(center).add(new THREE.Vector3(-1.2, 0.9, 2.2).normalize().multiplyScalar(radius * 3.4));
   camera.near = radius / 100; camera.far = radius * 100;
@@ -157,16 +163,30 @@ function updateSurface() {
   positionsAt(t, pos.array);
   pos.needsUpdate = true;
   geom.computeVertexNormals();
+  geom.computeBoundingSphere();  // keeps raycasting (painting) correct on the deformed shape
+  geom.computeBoundingBox();
+  updateColors();
 
+  const ds = signedDisplacement('start', t, new Float32Array(data.nPoints));
+  let out = 0, inw = 0;
+  for (const v of ds) { out = Math.max(out, v); inw = Math.min(inw, v); }
+  $('stats').textContent = `T.o.v. begin: max ${nl(out, 3)} ${data.unit} naar buiten, ${nl(-inw, 3)} ${data.unit} naar binnen`;
+}
+
+function updateColors() {
   const mode = $('colorMode').value;
-  const col = geom.getAttribute('color');
-  if (dispBuf.arr.length !== data.nPoints) dispBuf.arr = new Float32Array(data.nPoints);
+  const col = surface.geometry.getAttribute('color');
   const c = new THREE.Color();
-  if (mode === 'none' || !scales[mode]) {
-    for (let v = 0; v < data.nPoints; v++) colMid.toArray(col.array, 3 * v);
+  const n = data.nPoints;
+  if (mode === 'allowed' || mode === 'priority') {
+    const w = paint[mode], hue = mode === 'allowed' ? colAllowed : colPriority;
+    for (let v = 0; v < n; v++) c.copy(colMid).lerp(hue, w[v]).toArray(col.array, 3 * v);
+  } else if (mode === 'none' || !scales[mode]) {
+    for (let v = 0; v < n; v++) colMid.toArray(col.array, 3 * v);
   } else {
+    if (dispBuf.arr.length !== n) dispBuf.arr = new Float32Array(n);
     const d = signedDisplacement(mode, t, dispBuf.arr);
-    for (let v = 0; v < data.nPoints; v++) {
+    for (let v = 0; v < n; v++) {
       const x = Math.max(-1, Math.min(1, d[v] / scales[mode]));
       if (x >= 0) c.copy(colMid).lerp(colPos, x); else c.copy(colMid).lerp(colNeg, -x);
       c.toArray(col.array, 3 * v);
@@ -174,17 +194,23 @@ function updateSurface() {
   }
   col.needsUpdate = true;
 
-  // colour bar + stats
+  // colour bar: diverging for displacement, sequential for paint
   const cb = $('colorbar');
   cb.classList.toggle('off', mode === 'none');
-  const m = scales[mode] || 0;
-  $('cbMin').textContent = mode === 'none' ? '' : '−' + nl(m, 3) + ' ' + data.unit;
-  $('cbMax').textContent = mode === 'none' ? '' : '+' + nl(m, 3) + ' ' + data.unit;
-
-  const ds = mode === 'start' && scales.start ? dispBuf.arr : signedDisplacement('start', t, new Float32Array(data.nPoints));
-  let out = 0, inw = 0;
-  for (const v of ds) { out = Math.max(out, v); inw = Math.min(inw, v); }
-  $('stats').textContent = `T.o.v. begin: max ${nl(out, 3)} ${data.unit} naar buiten, ${nl(-inw, 3)} ${data.unit} naar binnen`;
+  const bar = cb.querySelector('.bar');
+  if (mode === 'allowed' || mode === 'priority') {
+    bar.style.background = `linear-gradient(90deg, ${css('--div-mid')}, ${css(mode === 'allowed' ? '--seq-allowed' : '--seq-priority')})`;
+    $('cbMin').textContent = '0 %'; $('cbMid').textContent = ''; $('cbMax').textContent = '100 %';
+    $('cbLeft').textContent = mode === 'allowed' ? 'vast' : 'geen voorkeur';
+    $('cbRight').textContent = mode === 'allowed' ? 'vrij' : 'sterke voorkeur';
+  } else {
+    bar.style.background = '';
+    const m = scales[mode] || 0;
+    $('cbMin').textContent = mode === 'none' ? '' : '−' + nl(m, 3) + ' ' + data.unit;
+    $('cbMid').textContent = '0';
+    $('cbMax').textContent = mode === 'none' ? '' : '+' + nl(m, 3) + ' ' + data.unit;
+    $('cbLeft').textContent = 'naar binnen'; $('cbRight').textContent = 'naar buiten';
+  }
 }
 
 // ---------------------------------------------------------------- charts
@@ -304,6 +330,222 @@ function buildTable() {
   $('table').innerHTML = html;
 }
 
+// ---------------------------------------------------------------- painting
+const TOOL_HELP = {
+  view: 'Draaien: slepen. Zoomen: scrollen of knijpen.',
+  allowed: 'Spuit waar de vorm mag veranderen: 0 % = vast, 100 % = vrij. Zolang er niets geschilderd is, mag alles. Draaien: rechts slepen of twee vingers.',
+  priority: 'Spuit waar je verwacht dat veranderen het meeste oplevert; daar zet de optimalisatie grotere stappen. Draaien: rechts slepen of twee vingers.',
+};
+let tool = 'view';
+let api = false;            // true when a viewer server stores the paint
+let modelRadius = 1;
+let stroke = null;          // { channel, before, changed }
+const undoStack = [];
+let hit = null;             // { point, normal } under the pointer
+const activePointers = new Set();
+let shiftDown = false;
+let saveTimer = null;
+
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const cursor = new THREE.Mesh(
+  new THREE.RingGeometry(0.92, 1, 64),
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide }),
+);
+cursor.renderOrder = 3;
+cursor.visible = false;
+scene.add(cursor);
+
+function brush() {
+  return {
+    radius: +$('size').value * modelRadius,
+    opacity: +$('opacity').value,
+    flow: +$('flow').value,
+    hardness: +$('hardness').value,
+    erase: $('erase').checked || shiftDown,
+  };
+}
+
+function updateBrushLabels() {
+  $('sizeOut').textContent = nl(+$('size').value * modelRadius, 2) + ' ' + (data ? data.unit : '');
+  $('opacityOut').textContent = Math.round(+$('opacity').value * 100) + ' %';
+  $('flowOut').textContent = Math.round(+$('flow').value * 100) + ' %';
+  $('hardnessOut').textContent = Math.round(+$('hardness').value * 100) + ' %';
+  cursor.scale.setScalar(brush().radius);
+}
+
+function setTool(name) {
+  tool = name;
+  for (const b of document.querySelectorAll('.seg button')) b.classList.toggle('on', b.dataset.tool === name);
+  const painting = name !== 'view';
+  $('brush').hidden = !painting;
+  $('toolHelp').textContent = TOOL_HELP[name];
+  view.classList.toggle('painting', painting);
+  // While painting the left button / one finger paints; rotate with right button / two fingers
+  controls.mouseButtons = painting
+    ? { LEFT: -1, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }
+    : { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+  controls.touches = painting
+    ? { ONE: -1, TWO: THREE.TOUCH.DOLLY_ROTATE }
+    : { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+  if (painting) $('colorMode').value = name;
+  if (!painting) cursor.visible = false;
+  if (data) updateColors();
+}
+
+function pick(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObject(surface, false);
+  if (!hits.length) { hit = null; cursor.visible = false; return; }
+  const h = hits[0];
+  const normal = h.face.normal.clone();
+  if (normal.dot(raycaster.ray.direction) > 0) normal.negate();  // the side facing the camera
+  hit = { point: h.point.clone(), normal };
+  cursor.position.copy(h.point).addScaledVector(normal, 0.002 * modelRadius);
+  cursor.lookAt(h.point.clone().add(normal));
+  cursor.visible = true;
+}
+
+function startStroke() {
+  stroke = { channel: tool, before: paint[tool].slice(), changed: false };
+}
+
+function cancelStroke() {
+  if (!stroke) return;
+  paint[stroke.channel].set(stroke.before);
+  stroke = null;
+  updateColors();
+}
+
+function endStroke() {
+  if (!stroke) return;
+  if (stroke.changed) {
+    undoStack.push({ channel: stroke.channel, before: stroke.before });
+    if (undoStack.length > 30) undoStack.shift();
+    scheduleSave();
+  }
+  stroke = null;
+}
+
+// Airbrush: while held, each point under the brush moves towards the target
+// at a rate set by flow and the brush falloff. Painting never lowers a value
+// (opacity caps a stroke, like an airbrush); the eraser only lowers.
+function sprayStep(dt) {
+  const b = brush();
+  const w = paint[stroke.channel];
+  const pos = surface.geometry.getAttribute('position').array;
+  const nrm = surface.geometry.getAttribute('normal').array;
+  const { point: p, normal: hn } = hit;
+  const r2 = b.radius * b.radius;
+  const rate = 1 + 11 * b.flow;  // 1/s
+  for (let v = 0; v < data.nPoints; v++) {
+    const k = 3 * v;
+    const dx = pos[k] - p.x, dy = pos[k + 1] - p.y, dz = pos[k + 2] - p.z;
+    const d2 = dx * dx + dy * dy + dz * dz;
+    if (d2 > r2) continue;
+    // only the side facing the brush, so paint does not bleed through to the back
+    if (nrm[k] * hn.x + nrm[k + 1] * hn.y + nrm[k + 2] * hn.z <= 0.1) continue;
+    const x = Math.sqrt(d2) / b.radius;
+    let f = 1;
+    if (x > b.hardness) {
+      const s = (x - b.hardness) / (1 - b.hardness + 1e-9);
+      f = 1 - s * s * (3 - 2 * s);
+    }
+    const a = 1 - Math.exp(-rate * f * dt);
+    if (b.erase) w[v] = w[v] * (1 - a) < 0.005 ? 0 : w[v] * (1 - a);  // reach a clean zero
+    else if (w[v] < b.opacity) w[v] = Math.min(b.opacity, w[v] + (b.opacity - w[v]) * a);
+  }
+  stroke.changed = true;
+  updateColors();
+}
+
+function undo() {
+  const u = undoStack.pop();
+  if (!u) return;
+  paint[u.channel].set(u.before);
+  updateColors();
+  scheduleSave();
+}
+
+function fillAll(value) {
+  if (tool === 'view') return;
+  undoStack.push({ channel: tool, before: paint[tool].slice() });
+  paint[tool].fill(value);
+  updateColors();
+  scheduleSave();
+}
+
+function scheduleSave() {
+  if (!api) { $('saveState').textContent = 'Niet opgeslagen: deze pagina draait zonder viewer-server.'; return; }
+  $('saveState').textContent = 'Opslaan…';
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(savePaint, 600);
+}
+
+async function savePaint() {
+  const round = (a) => Array.from(a, (v) => Math.round(v * 1000) / 1000);
+  const body = JSON.stringify({
+    patch: data.patch, nPoints: data.nPoints,
+    channels: { allowed: round(paint.allowed), priority: round(paint.priority) },
+  });
+  try {
+    const res = await fetch(`api/paint/${$('case').value}`, { method: 'PUT', body, headers: { 'Content-Type': 'application/json' } });
+    const msg = await res.json();
+    $('saveState').textContent = res.ok ? 'Opgeslagen.' : `Opslaan mislukt: ${msg.error}`;
+  } catch (err) {
+    $('saveState').textContent = `Opslaan mislukt: ${err.message}`;
+  }
+}
+
+async function loadPaint(id) {
+  paint = { allowed: new Float32Array(data.nPoints), priority: new Float32Array(data.nPoints) };
+  undoStack.length = 0;
+  try {
+    const res = await fetch(`api/paint/${id}`, { cache: 'no-cache' });
+    api = (res.headers.get('content-type') || '').includes('json');
+    if (!api) { $('saveState').textContent = 'Alleen bekijken: opslaan werkt via de viewer-server.'; return; }
+    const saved = await res.json();
+    if (!res.ok) { $('saveState').textContent = `Verf laden mislukt: ${saved.error}`; return; }
+    if (saved === null) { $('saveState').textContent = 'Nog geen verf. Wat je schildert wordt automatisch opgeslagen.'; return; }
+    if (saved.nPoints !== data.nPoints || saved.patch !== data.patch) {
+      $('saveState').textContent = 'Opgeslagen verf hoort bij een ander mesh en is niet geladen.';
+      return;
+    }
+    for (const ch of ['allowed', 'priority']) if (saved.channels[ch]) paint[ch].set(saved.channels[ch]);
+    $('saveState').textContent = 'Opgeslagen verf geladen.';
+  } catch (err) {
+    api = false;
+    $('saveState').textContent = `Verf laden mislukt: ${err.message}`;
+  }
+}
+
+const canvas = renderer.domElement;
+canvas.addEventListener('pointerdown', (e) => {
+  activePointers.add(e.pointerId);
+  if (tool === 'view' || !data) return;
+  if (activePointers.size > 1) { cancelStroke(); return; }  // second finger: rotate, not paint
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  pick(e);
+  startStroke();
+});
+canvas.addEventListener('pointermove', (e) => { if (tool !== 'view' && data && activePointers.size <= 1) pick(e); });
+for (const type of ['pointerup', 'pointercancel']) {
+  canvas.addEventListener(type, (e) => { activePointers.delete(e.pointerId); endStroke(); });
+}
+canvas.addEventListener('pointerleave', () => { if (!stroke) { hit = null; cursor.visible = false; } });
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Shift') shiftDown = true;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+});
+window.addEventListener('keyup', (e) => { if (e.key === 'Shift') shiftDown = false; });
+for (const b of document.querySelectorAll('.seg button')) b.addEventListener('click', () => setTool(b.dataset.tool));
+for (const id of ['size', 'opacity', 'flow', 'hardness']) $(id).addEventListener('input', updateBrushLabels);
+$('undo').addEventListener('click', undo);
+$('fill').addEventListener('click', () => fillAll(1));
+$('clear').addEventListener('click', () => fillAll(0));
+
 // ---------------------------------------------------------------- controls
 function setCycle(value) {
   t = value;
@@ -315,7 +557,7 @@ function setCycle(value) {
 }
 
 $('slider').addEventListener('input', (e) => { playing = false; $('play').textContent = '▶'; setCycle(+e.target.value); });
-$('colorMode').addEventListener('change', () => setCycle(t));
+$('colorMode').addEventListener('change', updateColors);
 $('ghost').addEventListener('change', (e) => { ghost.visible = e.target.checked; });
 $('wire').addEventListener('change', (e) => { wire.visible = e.target.checked; });
 $('play').addEventListener('click', () => {
@@ -337,6 +579,7 @@ function frame(now) {
     if (nt >= N) { nt = N; playing = false; $('play').textContent = '▶'; }
     setCycle(nt);
   }
+  if (stroke && hit) sprayStep(Math.min(dt, 0.05));
   controls.update();
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
@@ -347,8 +590,11 @@ async function loadCase(id) {
   $('title').textContent = data.title;
   $('slider').max = data.cycles.length;
   buildScene();
+  await loadPaint(id);
   buildCharts();
   buildTable();
+  updateBrushLabels();
+  setTool(tool);
   setCycle(1);
 }
 

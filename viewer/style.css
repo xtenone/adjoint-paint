@@ -86,3 +86,19 @@ td:first-child, th:first-child { text-align: left; }
   border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 12px;
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
+
+/* painting */
+:root, .viz-root {
+  --seq-allowed: #2a78d6;   /* sequential, blue */
+  --seq-priority: #eb6834;  /* sequential, orange (second sequential context) */
+}
+.seg { display: flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button { flex: 1; border: 0; border-radius: 0; background: var(--page); color: var(--text-secondary); min-height: 36px; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button.on { background: var(--axis); color: var(--text-primary); font-weight: 600; }
+label.slider { margin-top: 8px; }
+label.slider input { flex: 1; accent-color: var(--series-1); min-height: 28px; }
+label.slider output { min-width: 46px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.row.buttons { margin-top: 10px; flex-wrap: wrap; gap: 6px; }
+.row.buttons button { flex: 1; font-size: 13px; }
+#view.painting { cursor: none; }

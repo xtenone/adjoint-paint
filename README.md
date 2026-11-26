@@ -21,12 +21,19 @@ strongly. Changes between optimisation cycles are shown in the same viewer.
   `blockMeshDict` for `sphere-drag` (body and far field projected onto spheres)
 - `tools/export_surface.py` — exports one patch per optimisation cycle
   (positions, logged objective values, enclosed volume) to JSON
-- `tools/publish.sh` — exports the finished cases and copies the viewer to a
-  web-served directory
-- `viewer/` — static browser viewer (three.js): steps through the cycles,
-  colours the surface by normal displacement (vs. the start or the previous
-  cycle, on a fixed scale over all cycles), shows the initial shape as a
-  ghost, and plots objective and volume per cycle
+- `tools/export_all.sh` — exports every finished case to `viewer/data/`
+- `tools/publish.sh` — copies a view-only viewer plus data to any static
+  web directory
+- `viewer/` — browser viewer (three.js): steps through the cycles, colours
+  the surface by normal displacement (vs. the start or the previous cycle, on
+  a fixed scale over all cycles), shows the initial shape as a ghost, plots
+  objective and volume per cycle, and has two airbrush channels to paint on
+  the surface:
+  - *allowed* — how far the shape may move here (0 = fixed, 1 = free)
+  - *priority* — where the optimisation should take larger steps
+- `server/app.py` — serves the viewer and stores paint per case in
+  `cases/<case>/paint.json` (standard library only)
+- `deploy/` — podman Quadlet unit for the server and its installer
 
 ## Running
 
@@ -35,14 +42,23 @@ strongly. Changes between optimisation cycles are shown in the same viewer.
     ./run.sh cases/sphere-drag
 
 Results land in the case directory (`processor*/`, `optimisation/`, logs).
-To view them, reconstruct and publish:
+To view them, reconstruct and export:
 
     podman run --rm -v $PWD/cases:/cases:Z docker.io/opencfd/openfoam-default:2506 \
         bash -lc 'cd /cases/sphere-drag && reconstructPar'
-    tools/publish.sh <web-served directory>
+    tools/export_all.sh
 
-The viewer is plain static files; any web server will do (`python3 -m
-http.server` in the target directory works for a quick look).
+## Viewer server
+
+    python3 server/app.py              # http://localhost:8500/
+
+or as a podman user service that starts at boot:
+
+    deploy/install.sh [port]
+
+Painting: pick *Toegestaan* or *Voorkeur*, then hold the left mouse button
+(or one finger) to spray; rotate with the right button (or two fingers).
+Shift or the *Gum* toggle erases. Paint is saved automatically.
 
 ## Licence
 
