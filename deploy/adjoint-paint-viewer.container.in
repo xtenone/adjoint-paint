@@ -1,0 +1,22 @@
+# Podman Quadlet unit (systemd user service) for the adjoint-paint viewer server.
+# deploy/install.sh fills in @REPO@ and @PORT@ and installs it to
+# ~/.config/containers/systemd/.
+[Unit]
+Description=adjoint-paint viewer (paint + optimisation cycles)
+After=network-online.target
+
+[Container]
+Image=docker.io/library/python:3.12-slim
+ContainerName=adjoint-paint-viewer
+PublishPort=@PORT@:8500
+Volume=@REPO@:/app:Z
+Exec=python3 /app/server/app.py --root /app --port 8500
+# files written by the server (paint.json) keep the host user's ownership
+UserNS=keep-id
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

@@ -6,3 +6,5 @@ cases/*/0/
 cases/*/optimisation/
 cases/*/postProcessing/
 cases/*/constant/polyMesh/
+viewer/data/
+cases/*/.paint-*
