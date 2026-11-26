@@ -108,7 +108,6 @@ optimisation
         patches         (sphere);
         maxInitChange   0.01;   // 1 % of D
         nonOverlappingCPs true;
-        writeAllSurfaceFiles true;
     }
 
     updateMethod

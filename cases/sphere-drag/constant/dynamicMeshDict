@@ -11,21 +11,22 @@ solver volumetricBSplinesMotionSolver;
 
 volumetricBSplinesMotionSolverCoeffs
 {
-    // Morphing box around the sphere (D = 1, centred at the origin),
-    // longer downstream (+x) so the body can grow a tail
+    // Morphing box around the sphere (D = 1, centred at the origin).
+    // Its outer control-point layer is fixed, so the box must leave room
+    // for the body to stretch both upstream and downstream.
     sphereBox
     {
         type    cartesian;
-        nCPsU   10;
-        nCPsV   7;
-        nCPsW   7;
+        nCPsU   14;
+        nCPsV   8;
+        nCPsW   8;
         degreeU 3;
         degreeV 3;
         degreeW 3;
 
         controlPointsDefinition axisAligned;
-        lowerCpBounds           (-0.8 -0.8 -0.8);
-        upperCpBounds           ( 1.6  0.8  0.8);
+        lowerCpBounds           (-1.6 -0.9 -0.9);
+        upperCpBounds           ( 2.0  0.9  0.9);
 
         confineUMovement false;
         confineVMovement false;
