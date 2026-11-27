@@ -3,11 +3,16 @@ cd "${0%/*}" || exit                                # Run from this directory
 . ${WM_PROJECT_DIR:?}/bin/tools/RunFunctions        # Tutorial run functions
 #------------------------------------------------------------------------------
 
+# Morphing-box constraint that applies the paint (src/paintedConstraint)
+wmake libso /src/paintedConstraint > log.wmake 2>&1 || { echo "wmake failed, see log.wmake"; exit 1; }
+
 restore0Dir
 
 runApplication decomposePar
 
-runParallel $(getApplication)
+# only the solver loads it: in decomposePar it would pull in the adjoint
+# boundary conditions, which cannot be built outside the solver
+runParallel $(getApplication) -lib libpaintedConstraint.so
 
 runParallel cumulativeDisplacement
 

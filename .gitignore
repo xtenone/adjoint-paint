@@ -10,3 +10,5 @@ viewer/data/
 cases/*/.paint-*
 cases/*/system/paintBounds
 __pycache__/
+src/*/lnInclude/
+src/*/Make/linux64*/
