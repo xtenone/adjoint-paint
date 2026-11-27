@@ -27,7 +27,8 @@ Foam::paintedConstraint::paintedConstraint
 :
     noConstraint(mesh, dict, designVariables),
     paintLower_(dict.get<scalarField>("paintLowerBounds")),
-    paintUpper_(dict.get<scalarField>("paintUpperBounds"))
+    paintUpper_(dict.get<scalarField>("paintUpperBounds")),
+    free_(paintLower_.size(), false)
 {
     if (paintLower_.size() != paintUpper_.size())
     {
@@ -35,8 +36,37 @@ Foam::paintedConstraint::paintedConstraint
             << "paintLowerBounds and paintUpperBounds differ in size"
             << exit(FatalError);
     }
+    label nFree(0);
+    forAll(free_, i)
+    {
+        free_[i] = (paintUpper_[i] - paintLower_[i]) > SMALL;
+        nFree += free_[i];
+    }
     Info<< "Paint bounds for " << paintLower_.size()
-        << " design variables" << endl;
+        << " design variables, " << nFree << " of them free to move" << endl;
+}
+
+
+Foam::labelList Foam::paintedConstraint::computeActiveDesignVariables
+(
+    const labelList& activeCPCoors
+)
+{
+    const labelList active
+    (
+        noConstraint::computeActiveDesignVariables(activeCPCoors)
+    );
+    DynamicList<label> kept(active.size());
+    for (const label i : active)
+    {
+        if (i < free_.size() && free_[i])
+        {
+            kept.append(i);
+        }
+    }
+    Info<< "Active design variables: " << kept.size() << " of "
+        << active.size() << " (the rest is fixed by the paint)" << endl;
+    return labelList(std::move(kept));
 }
 
 
@@ -61,8 +91,12 @@ void Foam::paintedConstraint::clip
     }
     forAll(paintLower_, i)
     {
-        lowerBounds()[i] = max(lowerBounds()[i], paintLower_[i]);
-        upperBounds()[i] = min(upperBounds()[i], paintUpper_[i]);
+        // Fixed variables are inactive; their bounds are not used
+        if (free_[i])
+        {
+            lowerBounds()[i] = max(lowerBounds()[i], paintLower_[i]);
+            upperBounds()[i] = min(upperBounds()[i], paintUpper_[i]);
+        }
     }
 }
 

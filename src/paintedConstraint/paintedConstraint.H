@@ -9,7 +9,10 @@ Description
     whose bounds keep every control point between the midpoints to its
     neighbours and move along each cycle (with nonOverlappingCPs and
     updateBounds), so the box cannot fold. On top of that, every bound is
-    clipped to fixed, absolute bounds derived from the user's paint:
+    clipped to fixed, absolute bounds derived from the user's paint.
+    Design variables whose paint bounds have zero width are not design
+    variables at all (removed from the active set): they stay exactly where
+    they are, and the optimiser does not have to carry them.
 
         constraintType    painted;
         paintLowerBounds  <3*nCPs values>;
@@ -39,6 +42,9 @@ class paintedConstraint
         //- Fixed bounds from the paint, one per design variable
         scalarField paintLower_;
         scalarField paintUpper_;
+
+        //- Whether the paint lets a design variable move at all
+        boolList free_;
 
 
     // Private member functions
@@ -70,6 +76,12 @@ public:
 
 
     // Member functions
+
+        //- Active design variables of noConstraint, minus the fixed ones
+        virtual labelList computeActiveDesignVariables
+        (
+            const labelList& activeCPCoors
+        );
 
         //- Initial bounds: those of noConstraint, clipped to the paint
         virtual void computeBounds

@@ -340,6 +340,7 @@ function buildTable() {
 // Mirrors tools/paint_to_bounds.py: paint is averaged onto the morphing-box
 // control points (weighted by their B-spline basis at each point), and the
 // effective 'allowed' of a point is the basis-weighted sum of those weights.
+const FIXED_BELOW = 0.05;  // same as tools/paint_to_bounds.py
 let support = null;        // per point: { cp: Int32Array, w: Float64Array } or null outside the box
 let effectiveBuf = new Float32Array(0);
 
@@ -395,7 +396,10 @@ function effectiveAllowed() {
     if (!s) continue;
     for (let k = 0; k < s.cp.length; k++) { num[s.cp[k]] += s.w[k] * a[v]; den[s.cp[k]] += s.w[k]; }
   }
-  for (let c = 0; c < num.length; c++) num[c] = den[c] > 1e-12 ? num[c] / den[c] : 0;
+  for (let c = 0; c < num.length; c++) {
+    const w = den[c] > 1e-12 ? num[c] / den[c] : 0;
+    num[c] = w < FIXED_BELOW ? 0 : w;  // as tools/paint_to_bounds.py: weak control points are fixed
+  }
   for (let v = 0; v < data.nPoints; v++) {
     const s = support[v];
     let e = 0;
@@ -553,7 +557,11 @@ function fillAll(value) {
 }
 
 function scheduleSave() {
-  if (!api) { $('saveState').textContent = 'Niet opgeslagen: deze pagina draait zonder viewer-server.'; return; }
+  if (!api) {
+    $('saveState').textContent = $('case').value.startsWith('archive/')
+      ? 'Archief: verf wordt niet opgeslagen.' : 'Niet opgeslagen: deze pagina draait zonder viewer-server.';
+    return;
+  }
   $('saveState').textContent = 'Opslaan…';
   clearTimeout(saveTimer);
   saveTimer = setTimeout(savePaint, 600);
@@ -577,6 +585,11 @@ async function savePaint() {
 async function loadPaint(id) {
   paint = { allowed: new Float32Array(data.nPoints), priority: new Float32Array(data.nPoints) };
   undoStack.length = 0;
+  if (id.startsWith('archive/')) {
+    api = false;
+    $('saveState').textContent = 'Archief: alleen bekijken, verf wordt niet opgeslagen.';
+    return;
+  }
   try {
     const res = await fetch(`api/paint/${id}`, { cache: 'no-cache' });
     api = (res.headers.get('content-type') || '').includes('json');

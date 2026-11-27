@@ -19,4 +19,12 @@ add sphere-drag "Bol in stroming (Re 100), minimale weerstand" sphere --body --u
 add sphere-rear "Bol, alleen achterste helft vrij (test)" sphere --body --unit-label D --flow 1 0 0 --values drag
 add pipe-bend "Buisbocht 90° (laminair), minimaal drukverlies" bend --unit-label mm --unit-scale 1000 --flow 1 0 0 --values losses
 
+# Archived results (exports of earlier runs, kept for comparison)
+for f in "$OUT"/archive/*.json; do
+    [ -f "$f" ] || continue
+    id=archive/$(basename "$f" .json)
+    title=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["title"])' "$f")
+    index="$index{\"id\":\"$id\",\"title\":\"$title (archief)\"},"
+done
+
 echo "[${index%,}]" > "$OUT/index.json"

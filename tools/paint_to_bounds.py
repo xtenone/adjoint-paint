@@ -8,6 +8,7 @@ basis function of the control point at that point. A control point with
 weight w may then move at most w * maxDisplacement from its initial position
 in each direction. Control points that influence no painted point get w = 0.
 An 'allowed' channel that is zero everywhere counts as not painted.
+Control points below FIXED_BELOW are fixed exactly (inactive).
 
 The result is written to system/paintBounds, which optimisationDict includes
 if present: absolute bounds per design variable for the "painted"
@@ -141,11 +142,15 @@ def control_point_weights(box, points, allowed):
     return [n / d if d > 1e-12 else 0.0 for n, d in zip(num, den)]
 
 
-# ISQP is an interior-point method: the start must lie strictly inside the
-# bounds, so a "fixed" control point keeps this much room (fraction of
-# maxDisplacement). Zero-width bounds give a zero first step and then a
-# division by zero.
-MIN_HALF_WIDTH = 1e-3
+# Control points with less paint weight than this are fixed: zero-width
+# bounds, which src/paintedConstraint turns into inactive design variables.
+# Below 5 % (at most 0.05 * maxDisplacement) the weight is mostly paint
+# smeared in from neighbouring regions.
+FIXED_BELOW = 0.05
+
+
+def effective_weight(w):
+    return 0.0 if w < FIXED_BELOW else w
 
 
 def write_bounds(case, box, weights, max_disp):
@@ -154,7 +159,7 @@ def write_bounds(case, box, weights, max_disp):
     for cp, w in enumerate(weights):
         i, j, k = cp % nu, (cp // nu) % nv, cp // (nu * nv)
         c = (box["axes"][0][i], box["axes"][1][j], box["axes"][2][k])
-        half = max(w, MIN_HALF_WIDTH) * max_disp
+        half = effective_weight(w) * max_disp
         for x in c:
             lower.append(x - half)
             upper.append(x + half)
@@ -220,7 +225,7 @@ def main():
     max_disp = read_max_displacement(case)
     write_bounds(case, box, weights, max_disp)
     free = sum(w > 0.99 for w in weights)
-    part = sum(0.01 < w <= 0.99 for w in weights)
+    part = sum(FIXED_BELOW <= w <= 0.99 for w in weights)
     print("%s: %d control points free, %d partly, %d fixed (max displacement %g)"
           % (case, free, part, len(weights) - free - part, max_disp))
 
