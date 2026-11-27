@@ -7,6 +7,7 @@ of the volumetric B-spline morphing box, each surface point weighted by the
 basis function of the control point at that point. A control point with
 weight w may then move at most w * maxDisplacement from its initial position
 in each direction. Control points that influence no painted point get w = 0.
+An 'allowed' channel that is zero everywhere counts as not painted.
 
 The result is written to system/paintBounds, which optimisationDict includes
 if present (absolute lowerBounds/upperBounds per design variable, with
@@ -195,7 +196,8 @@ def main():
     paint = json.load(open(paint_file))
 
     allowed = paint["channels"].get("allowed")
-    if allowed is None:
+    # Nothing painted as allowed means unrestricted, as the viewer says
+    if allowed is None or max(allowed) == 0:
         if os.path.exists(target):
             os.remove(target)
         print("%s: no 'allowed' paint, optimisation unrestricted" % case)
