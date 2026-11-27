@@ -17,9 +17,9 @@ volumetricBSplinesMotionSolverCoeffs
     sphereBox
     {
         type    cartesian;
-        nCPsU   27;
-        nCPsV   15;
-        nCPsW   15;
+        nCPsU   14;
+        nCPsV   8;
+        nCPsW   8;
         degreeU 3;
         degreeV 3;
         degreeW 3;
