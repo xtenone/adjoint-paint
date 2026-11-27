@@ -108,6 +108,9 @@ optimisation
         patches         (sphere);
         maxInitChange   0.01;   // 1 % of D
         nonOverlappingCPs true;
+        // Control-point bounds from the user's paint (tools/paint_to_bounds.py);
+        // absent when nothing is painted
+        #includeIfPresent "paintBounds"
     }
 
     updateMethod

@@ -16,6 +16,7 @@ add() {  # add <case> <title> <patch> <export options...>
     fi
 }
 add sphere-drag "Bol in stroming (Re 100), minimale weerstand" sphere --body --unit-label D --flow 1 0 0 --values drag
+add sphere-rear "Bol, alleen achterste helft vrij (test)" sphere --body --unit-label D --flow 1 0 0 --values drag
 add pipe-bend "Buisbocht 90° (laminair), minimaal drukverlies" bend --unit-label mm --unit-scale 1000 --flow 1 0 0 --values losses
 
 echo "[${index%,}]" > "$OUT/index.json"

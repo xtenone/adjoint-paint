@@ -8,3 +8,4 @@ cases/*/postProcessing/
 cases/*/constant/polyMesh/
 viewer/data/
 cases/*/.paint-*
+cases/*/system/paintBounds

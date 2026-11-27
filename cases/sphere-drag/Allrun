@@ -5,14 +5,12 @@ cd "${0%/*}" || exit                                # Run from this directory
 
 restore0Dir
 
-runApplication blockMesh
-
-runApplication checkMesh
-
 runApplication decomposePar
 
 runParallel $(getApplication)
 
 runParallel cumulativeDisplacement
+
+runApplication reconstructPar
 
 #------------------------------------------------------------------------------
