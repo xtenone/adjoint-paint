@@ -178,8 +178,9 @@ function updateColors() {
   const col = surface.geometry.getAttribute('color');
   const c = new THREE.Color();
   const n = data.nPoints;
-  if (mode === 'allowed' || mode === 'priority') {
-    const w = paint[mode], hue = mode === 'allowed' ? colAllowed : colPriority;
+  if (mode === 'allowed' || mode === 'priority' || mode === 'effective') {
+    const w = mode === 'effective' ? effectiveAllowed() : paint[mode];
+    const hue = mode === 'priority' ? colPriority : colAllowed;
     for (let v = 0; v < n; v++) c.copy(colMid).lerp(hue, w[v]).toArray(col.array, 3 * v);
   } else if (mode === 'none' || !scales[mode]) {
     for (let v = 0; v < n; v++) colMid.toArray(col.array, 3 * v);
@@ -198,11 +199,14 @@ function updateColors() {
   const cb = $('colorbar');
   cb.classList.toggle('off', mode === 'none');
   const bar = cb.querySelector('.bar');
-  if (mode === 'allowed' || mode === 'priority') {
-    bar.style.background = `linear-gradient(90deg, ${css('--div-mid')}, ${css(mode === 'allowed' ? '--seq-allowed' : '--seq-priority')})`;
-    $('cbMin').textContent = '0 %'; $('cbMid').textContent = ''; $('cbMax').textContent = '100 %';
-    $('cbLeft').textContent = mode === 'allowed' ? 'vast' : 'geen voorkeur';
-    $('cbRight').textContent = mode === 'allowed' ? 'vrij' : 'sterke voorkeur';
+  if (mode === 'allowed' || mode === 'priority' || mode === 'effective') {
+    bar.style.background = `linear-gradient(90deg, ${css('--div-mid')}, ${css(mode === 'priority' ? '--seq-priority' : '--seq-allowed')})`;
+    const maxD = data.box && data.box.maxDisplacement;
+    $('cbMin').textContent = '0 %'; $('cbMid').textContent = '';
+    $('cbMax').textContent = mode !== 'priority' && maxD ? `100 % = ${nl(maxD, 2)} ${data.unit}` : '100 %';
+    $('cbLeft').textContent = mode === 'priority' ? 'geen voorkeur' : 'vast';
+    $('cbRight').textContent = mode === 'priority' ? 'sterke voorkeur'
+      : mode === 'effective' && !paint.allowed.some((v) => v > 0) ? 'niets geschilderd: alles vrij' : 'vrij';
   } else {
     bar.style.background = '';
     const m = scales[mode] || 0;
@@ -328,6 +332,75 @@ function buildTable() {
     }).join('') + '</tr>';
   }
   $('table').innerHTML = html;
+}
+
+// ---------------------------------------------------------------- paint -> control points
+// Mirrors tools/paint_to_bounds.py: paint is averaged onto the morphing-box
+// control points (weighted by their B-spline basis at each point), and the
+// effective 'allowed' of a point is the basis-weighted sum of those weights.
+let support = null;        // per point: { cp: Int32Array, w: Float64Array } or null outside the box
+let effectiveBuf = new Float32Array(0);
+
+function basisFn(u, n, p, kv) {
+  u = Math.min(u, 1 - 1e-12);
+  const N = new Float64Array(n + p);
+  for (let i = 0; i < n + p; i++) N[i] = kv[i] <= u && u < kv[i + 1] ? 1 : 0;
+  for (let q = 1; q <= p; q++) {
+    for (let i = 0; i < n + p - q; i++) {
+      const d1 = kv[i + q] - kv[i], d2 = kv[i + q + 1] - kv[i + 1];
+      N[i] = (d1 > 0 ? (u - kv[i]) / d1 * N[i] : 0) + (d2 > 0 ? (kv[i + q + 1] - u) / d2 * N[i + 1] : 0);
+    }
+  }
+  return N.subarray(0, n);
+}
+
+function buildSupport() {
+  support = null;
+  effectiveBuf = new Float32Array(data.nPoints);
+  const opt = [...$('colorMode').options].find((o) => o.value === 'effective');
+  opt.hidden = !data.box;
+  if (!data.box) return;
+  const { n: [nu, nv, nw], degree, knots, param } = data.box;
+  support = [];
+  for (let v = 0; v < data.nPoints; v++) {
+    if (param[3 * v] < 0) { support.push(null); continue; }
+    const bu = basisFn(param[3 * v], nu, degree[0], knots[0]);
+    const bv = basisFn(param[3 * v + 1], nv, degree[1], knots[1]);
+    const bw = basisFn(param[3 * v + 2], nw, degree[2], knots[2]);
+    const cp = [], w = [];
+    for (let k = 0; k < nw; k++) {
+      if (!bw[k]) continue;
+      for (let j = 0; j < nv; j++) {
+        if (!bv[j]) continue;
+        for (let i = 0; i < nu; i++) {
+          if (!bu[i]) continue;
+          cp.push(i + j * nu + k * nu * nv);
+          w.push(bu[i] * bv[j] * bw[k]);
+        }
+      }
+    }
+    support.push({ cp: Int32Array.from(cp), w: Float64Array.from(w) });
+  }
+}
+
+function effectiveAllowed() {
+  const out = effectiveBuf, a = paint.allowed;
+  if (!support || !a.some((v) => v > 0)) { out.fill(1); return out; }  // nothing painted: unrestricted
+  const [nu, nv, nw] = data.box.n;
+  const num = new Float64Array(nu * nv * nw), den = new Float64Array(nu * nv * nw);
+  for (let v = 0; v < data.nPoints; v++) {
+    const s = support[v];
+    if (!s) continue;
+    for (let k = 0; k < s.cp.length; k++) { num[s.cp[k]] += s.w[k] * a[v]; den[s.cp[k]] += s.w[k]; }
+  }
+  for (let c = 0; c < num.length; c++) num[c] = den[c] > 1e-12 ? num[c] / den[c] : 0;
+  for (let v = 0; v < data.nPoints; v++) {
+    const s = support[v];
+    let e = 0;
+    if (s) for (let k = 0; k < s.cp.length; k++) e += s.w[k] * num[s.cp[k]];
+    out[v] = e;
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- painting
@@ -590,6 +663,7 @@ async function loadCase(id) {
   $('title').textContent = data.title;
   $('slider').max = data.cycles.length;
   buildScene();
+  buildSupport();
   await loadPaint(id);
   buildCharts();
   buildTable();
@@ -609,5 +683,8 @@ async function init() {
   await loadCase(id);
   requestAnimationFrame(frame);
 }
+
+// for checks from the browser console / tests
+window.adjointPaint = { effectiveAllowed: () => Array.from(effectiveAllowed()) };
 
 init();

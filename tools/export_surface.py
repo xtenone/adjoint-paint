@@ -141,6 +141,22 @@ def main():
     if not cycles:
         sys.exit("%s: no time directories (run reconstructPar first)" % case)
 
+    # Morphing box + parametric coordinates of the patch points, so the
+    # viewer can show how paint maps onto the control points
+    box = None
+    try:
+        import paint_to_bounds as ptb
+        b = ptb.read_box(case)
+        params = []
+        for p in order:
+            pt = base[p]
+            params += [round(u, 8) for u in ptb.parametric(b, pt)] if ptb.inside(b, pt) else [-1, -1, -1]
+        box = {"n": b["n"], "degree": b["degree"], "knots": b["knots"], "param": params}
+        if os.path.exists(os.path.join(case, "system/paintDict")):
+            box["maxDisplacement"] = ptb.read_max_displacement(case) * args.unit_scale
+    except (SystemExit, OSError, AttributeError, ValueError) as e:
+        print("%s: no morphing-box data (%s)" % (case, e))
+
     data = {
         "title": args.title or os.path.basename(os.path.normpath(case)),
         "patch": patch,
@@ -152,6 +168,7 @@ def main():
         "body": args.body,
         "flow": args.flow,
         "nPoints": len(order),
+        "box": box,
         "triangles": triangles,
         "cycles": cycles,
     }
