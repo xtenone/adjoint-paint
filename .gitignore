@@ -9,3 +9,4 @@ cases/*/constant/polyMesh/
 viewer/data/
 cases/*/.paint-*
 cases/*/system/paintBounds
+__pycache__/
