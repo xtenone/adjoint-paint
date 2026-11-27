@@ -112,6 +112,8 @@ function buildScene() {
 
   ghost = new THREE.Mesh(g0, new THREE.MeshBasicMaterial({
     color: 0xffffff, transparent: true, opacity: 0.12, depthWrite: false, side: THREE.DoubleSide,
+    // where the shape has not moved, keep the ghost just behind it (no z-fighting)
+    polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 4,
   }));
   ghost.renderOrder = 1;
   ghost.visible = $('ghost').checked;
