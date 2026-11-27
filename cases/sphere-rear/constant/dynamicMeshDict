@@ -1,0 +1,36 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      dynamicMeshDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+solver volumetricBSplinesMotionSolver;
+
+volumetricBSplinesMotionSolverCoeffs
+{
+    // Morphing box around the sphere (D = 1, centred at the origin).
+    // Its outer control-point layer is fixed, so the box must leave room
+    // for the body to stretch both upstream and downstream.
+    sphereBox
+    {
+        type    cartesian;
+        nCPsU   14;
+        nCPsV   8;
+        nCPsW   8;
+        degreeU 3;
+        degreeV 3;
+        degreeW 3;
+
+        controlPointsDefinition axisAligned;
+        lowerCpBounds           (-1.6 -0.9 -0.9);
+        upperCpBounds           ( 2.0  0.9  0.9);
+
+        confineUMovement false;
+        confineVMovement false;
+        confineWMovement false;
+        confineBoundaryControlPoints true;
+    }
+}

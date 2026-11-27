@@ -1,0 +1,13 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      paintDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+// Read by tools/paint_to_bounds.py: how far (case length units, here D) a
+// control point painted 100 % 'allowed' may move from its initial position,
+// in each direction.
+maxDisplacement 0.5;

@@ -1,0 +1,16 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       volVectorField;
+    object      Ua;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+dimensions      [0 1 -1 0 0 0 0];
+internalField   uniform (0 0 0);
+boundaryField
+{
+    farfield { type adjointFarFieldVelocity; value uniform (0 0 0); }
+    sphere   { type adjointWallVelocity; value uniform (0 0 0); }
+}

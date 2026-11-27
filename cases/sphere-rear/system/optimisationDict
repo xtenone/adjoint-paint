@@ -1,0 +1,127 @@
+FoamFile
+{
+    version     2.0;
+    format      ascii;
+    class       dictionary;
+    object      optimisationDict;
+}
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+
+optimisationManager     steadyOptimisation;
+
+primalSolvers
+{
+    p1
+    {
+        active                 true;
+        type                   incompressible;
+        solver                 simple;
+        solutionControls
+        {
+            nIters 3000;
+            residualControl
+            {
+                "p.*"       1.e-7;
+                "U.*"       1.e-7;
+            }
+        }
+    }
+}
+
+adjointManagers
+{
+    am1
+    {
+        primalSolver             p1;
+        adjointSolvers
+        {
+            as1
+            {
+                active                 true;
+                type                   incompressible;
+                solver                 adjointSimple;
+                objectives
+                {
+                    type            incompressible;
+                    objectiveNames
+                    {
+                        // Drag coefficient: Aref = pi D^2 / 4
+                        drag
+                        {
+                            weight          1;
+                            type            force;
+                            patches         (sphere);
+                            direction       (1 0 0);
+                            Aref            0.785398163;
+                            rhoInf          1;
+                            UInf            1;
+                        }
+                    }
+                }
+                ATCModel
+                {
+                    ATCModel        standard;
+                }
+                solutionControls
+                {
+                    nIters 3000;
+                    residualControl
+                    {
+                        "pa.*"       1.e-7;
+                        "Ua.*"       1.e-7;
+                    }
+                }
+            }
+            // Volume may not drop below that of the initial sphere:
+            // -(V - V0)/V0 <= 0
+            vol
+            {
+                active                 true;
+                type                   null;
+                isConstraint           true;
+                objectives
+                {
+                    type                geometric;
+                    objectiveNames
+                    {
+                        vol
+                        {
+                            weight          -1;
+                            type            partialVolume;
+                            patches         (sphere);
+                            target          0;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+optimisation
+{
+    designVariables
+    {
+        type            shape;
+        shapeType       volumetricBSplines;
+        sensitivityType shapeFI;
+        patches         (sphere);
+        maxInitChange   0.01;   // 1 % of D
+        nonOverlappingCPs true;
+        // Control-point bounds from the user's paint (tools/paint_to_bounds.py);
+        // absent when nothing is painted
+        #includeIfPresent "paintBounds"
+    }
+
+    updateMethod
+    {
+        method          ISQP;
+        delta           1;
+        lineSearch
+        {
+            type            ArmijoConditions;
+            stepUpdateType  quadratic;
+            minRatio        0.05;
+        }
+    }
+}
