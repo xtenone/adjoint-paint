@@ -84,10 +84,17 @@ cannot act per surface point; it acts per control point:
    then `Allrun`, which builds the library and passes it to the solver
    (`-lib`).
 
+Control points with less than 5 % weight are fixed exactly: the constraint
+removes them from the active design variables, so the optimiser does not
+carry them (near-zero-width bounds instead made ISQP's interior-point solve
+crawl).
+
 Because each control point influences a region several control-point
 spacings wide, the paint is blurred; the viewer's colour mode *Toegestaan,
-effectief* shows what the optimisation actually gets. A denser control
-point grid sharpens it. *Priority* paint is stored but not used yet.
+effectief* shows what the optimisation actually gets. A denser grid would
+sharpen it, but on the spheres a 27x15x15 grid folded the mesh behind the
+growing tail (with and without paint) and made each cycle ~4.5x slower, so
+the cases use 14x8x8. *Priority* paint is stored but not used yet.
 
 ## Licence
 
